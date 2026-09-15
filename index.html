@@ -373,8 +373,9 @@ function render(){
   // ---- Estado pie ----
   renderPie(rows);
 
-  // ---- Canal chart ----
-  renderCanalChart(rows);
+  // ---- Canal chart: ventas (contratos con éxito) por canal, del mes (fecha de curse) ----
+  const ventasRows = ROWS.filter(r => r.b==='exito' && canalMatch(r) && mesMatchF(r));
+  renderCanalChart(ventasRows);
 
   // ---- Top 10 + full ranking ----
   renderRanking(rows);
