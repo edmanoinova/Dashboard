@@ -213,6 +213,9 @@
   <div class="section-label">Indicadores clave</div>
   <div class="kpi-row" id="kpiRow"></div>
 
+  <div class="section-label" style="margin-top:14px;">Indicadores del mes <span id="monthKpiTag" style="text-transform:none; font-weight:400; opacity:0.8;"></span></div>
+  <div class="kpi-row" id="kpiRowMonth"></div>
+
   <div class="section-label" style="margin-top:14px;">Ventas diarias · comparativo mes actual vs. mismo día mes anterior</div>
   <div class="mtd-wrap">
     <div class="mtd-summary" id="mtdSummary"></div>
@@ -358,7 +361,45 @@ function render(){
   // ---- Ventas con éxito del día ----
   renderToday(rows, mesSel);
 
+  // ---- Indicadores fijos del mes en curso (independiente del filtro de Mes) ----
+  renderMonthKPIs();
+
   document.getElementById('rankingCount').textContent = `· ${new Set(rows.map(r=>r.e)).size} ejecutivos`;
+}
+
+function renderMonthKPIs(){
+  const todayMonthKey = new Date().toISOString().slice(0,7);
+  const hasLiveMonth = monthsAvailable.includes(todayMonthKey);
+  const targetMonth = hasLiveMonth ? todayMonthKey : latestMonth;
+  const [ty, tm] = targetMonth.split('-').map(Number);
+
+  const canal = filterCanal.value;
+  const rows = ROWS.filter(r => r.f.startsWith(targetMonth) && (canal==='ALL'||r.c===canal));
+
+  const total = rows.length;
+  const exito = rows.filter(r=>r.b==='exito').length;
+  const enProceso = rows.filter(r=>r.b==='en_proceso').length;
+  const conversion = total ? Math.round(exito/total*1000)/10 : 0;
+  const dsgVals = rows.map(r=>r.d).filter(v => v !== null && v !== undefined);
+  const dsgProm = dsgVals.length ? Math.round(dsgVals.reduce((a,b)=>a+b,0)/dsgVals.length*10)/10 : 0;
+
+  const kpis = [
+    { label:'Casos evaluados', value: total, cls:'blue' },
+    { label:'Contratos con éxito', value: exito, cls:'green' },
+    { label:'Tasa de conversión', value: conversion+'%', cls:'green' },
+    { label:'Casos en gestión', value: enProceso, cls:'amber' },
+    { label:'Prom. días sin gestión', value: dsgProm, cls:'purple' },
+    { label:'Ejecutivos activos', value: new Set(rows.map(r=>r.e)).size, cls:'blue' },
+  ];
+  document.getElementById('kpiRowMonth').innerHTML = kpis.map(k => `
+    <div class="kpi-card">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value ${k.cls} num">${k.value}</div>
+    </div>`).join('');
+
+  document.getElementById('monthKpiTag').textContent = hasLiveMonth
+    ? `· ${MONTH_NAMES[tm]} ${ty} (mes en curso)`
+    : `· ${MONTH_NAMES[tm]} ${ty} (último mes con carga — aún sin registros del mes actual)`;
 }
 
 function renderDailyComparison(mesSel){
@@ -373,6 +414,14 @@ function renderDailyComparison(mesSel){
   const prevDate = new Date(cy, cm - 2, 1);
   prevMonthKey = prevDate.toISOString().slice(0,7);
   const daysInMonth = new Date(cy, cm, 0).getDate();
+  const daysInPrevMonth = new Date(prevDate.getFullYear(), prevDate.getMonth()+1, 0).getDate();
+
+  // La comparación "vs. mes anterior" es SIEMPRE a la fecha (mismo número de días
+  // transcurridos), no el mes completo. Ej: si hoy es 15, se compara día 1-15 de
+  // este mes contra día 1-15 del mes anterior.
+  const todayDay = new Date().getDate();
+  const cutoffCur = Math.min(todayDay, daysInMonth);
+  const cutoffPrev = Math.min(todayDay, daysInPrevMonth);
 
   const canal = filterCanal.value;
   const curRows = ROWS.filter(r => r.f.startsWith(curMonthKey) && r.b==='exito' && (canal==='ALL'||r.c===canal));
@@ -382,15 +431,16 @@ function renderDailyComparison(mesSel){
   curRows.forEach(r => { const d = parseInt(r.f.slice(8,10),10); curByDay[d]=(curByDay[d]||0)+1; });
   prevRows.forEach(r => { const d = parseInt(r.f.slice(8,10),10); prevByDay[d]=(prevByDay[d]||0)+1; });
 
-  const curTotal = curRows.length, prevTotal = prevRows.length;
+  const curTotal = curRows.filter(r => parseInt(r.f.slice(8,10),10) <= cutoffCur).length;
+  const prevTotal = prevRows.filter(r => parseInt(r.f.slice(8,10),10) <= cutoffPrev).length;
   const variacion = prevTotal === 0 ? (curTotal>0?100:0) : Math.round((curTotal-prevTotal)/prevTotal*1000)/10;
   const deltaClass = variacion > 0 ? 'delta-up' : variacion < 0 ? 'delta-down' : '';
   const arrow = variacion > 0 ? '▲' : variacion < 0 ? '▼' : '—';
 
   document.getElementById('mtdSummary').innerHTML = `
-    <div class="mtd-sum-card"><div class="mtd-sum-label">Total ${MONTH_NAMES[cm]}</div><div class="mtd-sum-value num" style="color:var(--green)">${curTotal}</div></div>
-    <div class="mtd-sum-card"><div class="mtd-sum-label">Total ${MONTH_NAMES[prevDate.getMonth()+1]}</div><div class="mtd-sum-value num" style="color:var(--purple)">${prevTotal}</div></div>
-    <div class="mtd-sum-card"><div class="mtd-sum-label">Variación vs. mes anterior</div><div class="mtd-sum-value num ${deltaClass}">${arrow} ${Math.abs(variacion)}%</div></div>
+    <div class="mtd-sum-card"><div class="mtd-sum-label">${MONTH_NAMES[cm]} (día 1-${cutoffCur})</div><div class="mtd-sum-value num" style="color:var(--green)">${curTotal}</div></div>
+    <div class="mtd-sum-card"><div class="mtd-sum-label">${MONTH_NAMES[prevDate.getMonth()+1]} (día 1-${cutoffPrev})</div><div class="mtd-sum-value num" style="color:var(--purple)">${prevTotal}</div></div>
+    <div class="mtd-sum-card"><div class="mtd-sum-label">Variación vs. mes anterior (a la fecha)</div><div class="mtd-sum-value num ${deltaClass}">${arrow} ${Math.abs(variacion)}%</div></div>
   `;
 
   document.getElementById('dailyLegend').innerHTML = `
