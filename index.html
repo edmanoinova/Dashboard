@@ -83,7 +83,7 @@
     color:#fff; background: var(--navy); padding:8px 16px; border-radius:8px 8px 0 0; margin-top:18px;
   }
   .kpi-row{
-    display:grid; grid-template-columns: repeat(4, 1fr); gap:1px; background: var(--line);
+    display:grid; grid-template-columns: repeat(5, 1fr); gap:1px; background: var(--line);
     border:1px solid var(--line); border-radius:0 0 10px 10px; overflow:hidden;
   }
   .kpi-card{ background: var(--card); padding:20px 16px; text-align:center; }
@@ -344,12 +344,14 @@ function render(){
   const canalMatch = r => (canal==='ALL' || r.c===canal);
 
   const evaluados = ROWS.filter(r => canalMatch(r) && mesMatchFE(r)).length;
+  const califica = ROWS.filter(r => r.est === 'CALIFICA' && canalMatch(r) && mesMatchFE(r)).length;
   const exito = ROWS.filter(r => r.b==='exito' && canalMatch(r) && mesMatchF(r)).length;
   const conversion = evaluados ? Math.round(exito/evaluados*1000)/10 : 0;
   const enGestion = ROWS.filter(r => GESTION_STATES.has(r.est) && canalMatch(r) && mesMatchFE(r)).length;
 
   const kpis = [
     { label:'Total evaluados del mes', value: evaluados, cls:'blue' },
+    { label:'Estado Califica', value: califica, cls:'purple' },
     { label:'Contratos con éxito (fecha de curse)', value: exito, cls:'green' },
     { label:'Tasa de conversión', value: conversion+'%', cls:'green' },
     { label:'Casos en gestión', value: enGestion, cls:'amber' },
